@@ -1,11 +1,19 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import * as internal from 'stream';
 
+import "./colorize";
+import type codemirror from "codemirror";
+import Prism from 'prismjs';
+
 const base64 = require('base-64');
 const { Octokit } = require("@octokit/core");
 const octokit = new Octokit({
 	auth: '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'
 })
+
+
+
+
 
 // Remember to rename these classes and interfaces!
 
@@ -13,10 +21,14 @@ interface ObsidianGithubSettings {
 	githubPat: string;
 	owner: string;
 	repo: string;
+	maxLinesShown: number;
 }
 
 const DEFAULT_SETTINGS: ObsidianGithubSettings = {
-	githubPat: 'default'
+	githubPat: 'default',
+	owner: '',
+	repo: '',
+	maxLinesShown: 20
 }
 
 export default class ObsidianGithub extends Plugin {
@@ -95,15 +107,17 @@ export default class ObsidianGithub extends Plugin {
 
 	parseSource(src: string): GithubFileContent {
 		const { owner, repo } = this.settings;
-		const match = src.trim().match(/^(.*)#L(\d+)$/);
+		const match = src.trim().match(/^(.*)#L(\d+)(-L(\d+))?$/);
 		if (match) {
-			const [_, path, lineString] = match;
-			const lineStart = parseInt(lineString);
+			const [_, path, lineStartString, _2, lineEndString] = match;
+			const lineStart = parseInt(lineStartString);
+			const lineEnd = lineEndString === undefined ? undefined : parseInt(lineEndString);
 			return {
 				owner: owner,
 				repo: repo,
 				path: path,
-				lineStart: lineStart
+				lineStart: lineStart,
+				lineEnd: lineEnd
 			}
 		}
 
@@ -119,44 +133,99 @@ export default class ObsidianGithub extends Plugin {
 		return fullFilename.split('\/').slice(-1)[0];
 	}
 
+	// Show [lineStart, lineEnd] inclusively. Line start from 1.
+	getFilecontentByLines(fullContent: string, lineStart?: number, lineEnd?: number): string {
+		const lines = fullContent.split('\n');
+
+		const finalLineStart = lineStart === undefined ? 1 : lineStart;
+		const finalLineEnd = lineEnd === undefined ? Math.min(finalLineStart + this.settings.maxLinesShown - 1, lines.length) : lineEnd;
+
+		return lines.slice(finalLineStart - 1, finalLineEnd).join('\n');
+	}
+
+	getLangageCls(path: string): string {
+		if (path.endsWith('.js')) {
+			return "language-javascript";
+		} else if (path.endsWith('.ex')) {
+			return "language-elixir";
+		} else if (path.endsWith('.py')) {
+			return "language-python";
+		} else {
+			return ""
+		}
+	}
+
+	createCodeFromString(fileContent: string): Node {
+		// TODO: How to load more language
+		const template  = createEl('template');
+		const html = Prism.highlight(fileContent, Prism.languages.javascript, 'javascript');
+		template.innerHTML = `<code>${html}</code>`;
+		return template.content.firstChild;
+	}
+
 	async postprocessor(
 		src: string,
 		el: HTMLElement,
 		ctx?: MarkdownPostProcessorContext
 	) {
-		const { owner, repo, path, lineStart } = this.parseSource(src);
+		const { owner, repo, path, lineStart, lineEnd } = this.parseSource(src);
 		const fileContent = await this.fetchFileContent(owner, repo, path);
+		const visibleContent = this.getFilecontentByLines(fileContent, lineStart, lineEnd);
 
-		let visibleContent;
-		if (lineStart !== null) {
-			visibleContent = fileContent.split("\n").slice(lineStart-1).join("\n");
-		} else {
-			visibleContent = fileContent;
-		}
+		const clsPrefix = 'obsidian-github'
 
-		const div = createEl("div", {
-			cls: "foo", attr: { style: "border-left: 3px solid #00000087; padding-left: 10px" }
+		const topLevelDiv = createEl("div", {
+			cls: `${clsPrefix}-main`,
+			attr: {
+				style: "border-left: 3px solid #00000087; padding-left: 10px; margin-bottom: 10px"
+			}
 		});
 
-		const div1 = div.createEl("div", { cls: "General" });
-		div1.createEl("a", {
+		const header = topLevelDiv.createEl("div", { cls: `${clsPrefix}-header` });
+		header.createEl("a", {
 			text: this.getShortFilename(path),
 			attr: {
 				href: `https://github.com/${owner}/${repo}/blob/main/${path}`
 			}
 		});
 
-		div
-			.createEl("pre")
+		const code = topLevelDiv
+			.createEl("pre", {})
 			.createEl("code", {
-				cls: "language-elixir",
+				cls: this.getLangageCls(path),
 				attr: {}
-			})
-			.createSpan({ text: visibleContent });
+			});
+		code.replaceWith(this.createCodeFromString(fileContent));
 
-		el.replaceWith(div);
+		const footer = topLevelDiv.createEl("div", { cls: `${clsPrefix}-footer`});
+		const button = footer.createEl("button", {
+			text: "Copy Path",
+			cls: "obsidian-github-copy-path",
+			attr: {
+				style: "font-size: 10px; padding-left: 10px; padding-right: 10px",
+				"data-path": path,
+			}
+		});
+		button.addEventListener("click", (evt) => {
+			const srcElement = evt.srcElement;
+			const path = srcElement.dataset['path'];
+			navigator.clipboard.writeText(path).then(async () => {
+				new Notice("Copied to clipboard.");
+			});
+		});
+
+
+		el.replaceWith(topLevelDiv);
 	}
 
+
+	refreshPanes() {
+		this.app.workspace.getLeavesOfType("markdown").forEach(leaf => {
+			if (leaf.view instanceof MarkdownView) {
+				leaf.view.previewMode.rerender(true);
+			}
+		});
+	}
 }
 
 interface GithubFileContent {
@@ -227,6 +296,16 @@ class ObsidianGithubSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.repo)
 				.onChange(async (value) => {
 					this.plugin.settings.repo = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Max Lines Shown')
+			.addText(text => text
+				.setPlaceholder('Enter max lines shown')
+				.setValue(this.plugin.settings.maxLinesShown.toString())
+				.onChange(async (value) => {
+					this.plugin.settings.maxLinesShown = parseInt(value);
 					await this.plugin.saveSettings();
 				}));
 	}
