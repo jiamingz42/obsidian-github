@@ -105,6 +105,10 @@ export default class ObsidianGithub extends Plugin {
 			repo: this.settings.repo,
 			path: path
 		})
+		if (Array.isArray(response['data'])) {
+			throw "Folder not supported";
+		}
+		
 		return base64.decode(response['data']['content']);
 	}
 
