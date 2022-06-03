@@ -160,7 +160,6 @@ export default class ObsidianGithub extends Plugin {
 
 	renderContent(metadata: GithubFileMetadata, fileContent: string): Node {
 		const {owner, repo, lineStart, lineEnd, path} = metadata;
-		console.log(metadata);
 		const visibleContent = this.getFilecontentByLines(fileContent, lineStart, lineEnd);
 
 		const clsPrefix = 'obsidian-github'
@@ -217,11 +216,17 @@ export default class ObsidianGithub extends Plugin {
 		el: HTMLElement,
 		ctx?: MarkdownPostProcessorContext
 	) {
-		const fileMetadata = this.parseSource(src);
-		const { owner, repo, path } = fileMetadata;
-		const fileContent = await this.fetchFileContent(owner, repo, path);
-		const topLevelDiv = this.renderContent(fileMetadata, fileContent);
-		el.replaceWith(topLevelDiv);
+		try {
+			const fileMetadata = this.parseSource(src);
+			const { owner, repo, path } = fileMetadata;
+			const fileContent = await this.fetchFileContent(owner, repo, path);
+			const topLevelDiv = this.renderContent(fileMetadata, fileContent);
+			el.replaceWith(topLevelDiv);
+		} catch (e) {
+			const pre = createEl('pre');
+			pre.createSpan({text: e.toString()})
+			el.replaceWith(pre);
+		}
 	}
 }
 
