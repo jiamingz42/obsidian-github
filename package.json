@@ -1,28 +1,37 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.1",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
-	"main": "main.js",
-	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
-	},
-	"keywords": [],
-	"author": "",
-	"license": "MIT",
-	"devDependencies": {
-		"@types/node": "^16.11.6",
-		"@typescript-eslint/eslint-plugin": "^5.2.0",
-		"@typescript-eslint/parser": "^5.2.0",
-		"builtin-modules": "^3.2.0",
-		"esbuild": "0.13.12",
-		"obsidian": "latest",
-		"tslib": "2.3.1",
-		"typescript": "4.4.4"
-	},
-	"dependencies": {
-		"@octokit/core": "^3.6.0",
-		"base-64": "^1.0.0"
-	}
+    "name": "obsidian-sample-plugin",
+    "version": "1.0.1",
+    "description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+    "main": "main.js",
+    "scripts": {
+        "dev": "node esbuild.config.mjs",
+        "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+        "build2": "babel src -d lib",
+        "version": "node version-bump.mjs && git add manifest.json versions.json"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@babel/cli": "^7.17.10",
+        "@babel/core": "^7.18.2",
+        "@types/node": "^16.11.6",
+        "@types/prismjs": "^1.26.0",
+        "@typescript-eslint/eslint-plugin": "^5.2.0",
+        "@typescript-eslint/parser": "^5.2.0",
+        "babel-plugin-prismjs": "^2.1.0",
+        "builtin-modules": "^3.2.0",
+        "esbuild": "0.13.12",
+        "esbuild-plugin-prismjs": "^1.0.7",
+        "obsidian": "latest",
+        "tslib": "2.3.1",
+        "typescript": "4.4.4"
+    },
+    "dependencies": {
+        "@octokit/core": "^3.6.0",
+        "babel": "^6.23.0",
+        "base-64": "^1.0.0",
+        "codemirror": "^5.65.4",
+        "prismjs": "^1.28.0"
+    }
 }
