@@ -29,7 +29,7 @@ export default class ObsidianGithub extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		this.octokit = new Octokit({ auth: this.settings.githubPat })
+		this.octokit = this.createOctokitFromSettings(this.settings);
 
 		// // This adds a simple command that can be triggered anywhere
 		// this.addCommand({
@@ -78,6 +78,10 @@ export default class ObsidianGithub extends Plugin {
 
 	}
 
+	createOctokitFromSettings(settings: ObsidianGithubSettings): typeof Octokit {
+		return new Octokit({ auth: settings.githubPat });
+	}
+
 	onunload() { }
 
 	async loadSettings() {
@@ -97,7 +101,7 @@ export default class ObsidianGithub extends Plugin {
 		return base64.decode(response['data']['content']);
 	}
 
-	parseSource(src: string): GithubFileContent {
+	parseSource(src: string): GithubFileMetadata {
 		const { owner, repo } = this.settings;
 		const match = src.trim().match(/^(.*)#L(\d+)(-L(\d+))?$/);
 		if (match) {
@@ -154,13 +158,9 @@ export default class ObsidianGithub extends Plugin {
 		return template.content.firstChild;
 	}
 
-	async postprocessor(
-		src: string,
-		el: HTMLElement,
-		ctx?: MarkdownPostProcessorContext
-	) {
-		const { owner, repo, path, lineStart, lineEnd } = this.parseSource(src);
-		const fileContent = await this.fetchFileContent(owner, repo, path);
+	renderContent(metadata: GithubFileMetadata, fileContent: string): Node {
+		const {owner, repo, lineStart, lineEnd, path} = metadata;
+		console.log(metadata);
 		const visibleContent = this.getFilecontentByLines(fileContent, lineStart, lineEnd);
 
 		const clsPrefix = 'obsidian-github'
@@ -209,12 +209,23 @@ export default class ObsidianGithub extends Plugin {
 			});
 		});
 
+		return topLevelDiv;
+	}
 
+	async postprocessor(
+		src: string,
+		el: HTMLElement,
+		ctx?: MarkdownPostProcessorContext
+	) {
+		const fileMetadata = this.parseSource(src);
+		const { owner, repo, path } = fileMetadata;
+		const fileContent = await this.fetchFileContent(owner, repo, path);
+		const topLevelDiv = this.renderContent(fileMetadata, fileContent);
 		el.replaceWith(topLevelDiv);
 	}
 }
 
-interface GithubFileContent {
+interface GithubFileMetadata {
 	owner: string;
 	repo: string;
 	path: string;
@@ -246,7 +257,7 @@ class ObsidianGithubSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.githubPat = value;
 					await this.plugin.saveSettings();
-					this.plugin.octokit = new Octokit({ auth: value })
+					this.plugin.octokit = this.plugin.createOctokitFromSettings(this.plugin.settings);
 				}));
 
 		new Setting(containerEl)
