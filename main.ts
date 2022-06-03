@@ -151,16 +151,16 @@ export default class ObsidianGithub extends Plugin {
 		}
 	}
 
-	createCodeFromString(fileContent: string, lang: string): Node {
+	createCodeFromString(fileContent: string, lang: string, lineStart: number, lineEnd: number): Node {
 		const template = createEl('template');
 		const html = Prism.highlight(fileContent, Prism.languages[lang], lang);
-		template.innerHTML = `<code style='font-size: 12px'>${html}</code>`;
+		const finalHtml = html.split("\n").slice(lineStart-1, lineEnd).join('\n');
+		template.innerHTML = `<code style='font-size: 12px'>${finalHtml}</code>`;
 		return template.content.firstChild;
 	}
 
 	renderContent(metadata: GithubFileMetadata, fileContent: string): Node {
 		const {owner, repo, lineStart, lineEnd, path} = metadata;
-		const visibleContent = this.getFilecontentByLines(fileContent, lineStart, lineEnd);
 
 		const clsPrefix = 'obsidian-github'
 
@@ -189,7 +189,7 @@ export default class ObsidianGithub extends Plugin {
 			.createEl("code", {
 				cls: `language-${this.getLangage(path)} is-loaded`,
 			});
-		code.replaceWith(this.createCodeFromString(visibleContent, this.getLangage(path)));
+		code.replaceWith(this.createCodeFromString(fileContent, this.getLangage(path), lineStart, lineEnd));
 
 		const footer = topLevelDiv.createEl("div", { cls: `${clsPrefix}-footer` });
 		const button = footer.createEl("button", {
