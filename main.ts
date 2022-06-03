@@ -1,21 +1,12 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import * as internal from 'stream';
 
-import "./colorize";
-import type codemirror from "codemirror";
 import Prism from 'prismjs';
+import loadLanguages from 'prismjs/components';
 
 const base64 = require('base-64');
 const { Octokit } = require("@octokit/core");
-const octokit = new Octokit({
-	auth: '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'
-})
 
-
-
-
-
-// Remember to rename these classes and interfaces!
 
 interface ObsidianGithubSettings {
 	githubPat: string;
@@ -33,9 +24,12 @@ const DEFAULT_SETTINGS: ObsidianGithubSettings = {
 
 export default class ObsidianGithub extends Plugin {
 	settings: ObsidianGithubSettings;
+	octokit: typeof Octokit | undefined;
 
 	async onload() {
 		await this.loadSettings();
+
+		this.octokit = new Octokit({ auth: this.settings.githubPat })
 
 		// // This adds a simple command that can be triggered anywhere
 		// this.addCommand({
@@ -84,9 +78,7 @@ export default class ObsidianGithub extends Plugin {
 
 	}
 
-	onunload() {
-
-	}
+	onunload() { }
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -97,7 +89,7 @@ export default class ObsidianGithub extends Plugin {
 	}
 
 	async fetchFileContent(owner: string, repo: string, path: string) {
-		const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+		const response = await this.octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
 			owner: this.settings.owner,
 			repo: this.settings.repo,
 			path: path
@@ -143,23 +135,22 @@ export default class ObsidianGithub extends Plugin {
 		return lines.slice(finalLineStart - 1, finalLineEnd).join('\n');
 	}
 
-	getLangageCls(path: string): string {
+	getLangage(path: string): string {
 		if (path.endsWith('.js')) {
-			return "language-javascript";
+			return "javascript";
 		} else if (path.endsWith('.ex')) {
-			return "language-elixir";
+			return "elixir";
 		} else if (path.endsWith('.py')) {
-			return "language-python";
+			return "python";
 		} else {
 			return ""
 		}
 	}
 
-	createCodeFromString(fileContent: string): Node {
-		// TODO: How to load more language
-		const template  = createEl('template');
-		const html = Prism.highlight(fileContent, Prism.languages.javascript, 'javascript');
-		template.innerHTML = `<code>${html}</code>`;
+	createCodeFromString(fileContent: string, lang: string): Node {
+		const template = createEl('template');
+		const html = Prism.highlight(fileContent, Prism.languages[lang], lang);
+		template.innerHTML = `<code style='font-size: 12px'>${html}</code>`;
 		return template.content.firstChild;
 	}
 
@@ -190,14 +181,18 @@ export default class ObsidianGithub extends Plugin {
 		});
 
 		const code = topLevelDiv
-			.createEl("pre", {})
+			.createEl("pre", {
+				cls: `language-${this.getLangage(path)}`,
+				attr: {
+					style: "line-height: 1.3"
+				}
+			})
 			.createEl("code", {
-				cls: this.getLangageCls(path),
-				attr: {}
+				cls: `language-${this.getLangage(path)} is-loaded`,
 			});
-		code.replaceWith(this.createCodeFromString(fileContent));
+		code.replaceWith(this.createCodeFromString(visibleContent, this.getLangage(path)));
 
-		const footer = topLevelDiv.createEl("div", { cls: `${clsPrefix}-footer`});
+		const footer = topLevelDiv.createEl("div", { cls: `${clsPrefix}-footer` });
 		const button = footer.createEl("button", {
 			text: "Copy Path",
 			cls: "obsidian-github-copy-path",
@@ -216,15 +211,6 @@ export default class ObsidianGithub extends Plugin {
 
 
 		el.replaceWith(topLevelDiv);
-	}
-
-
-	refreshPanes() {
-		this.app.workspace.getLeavesOfType("markdown").forEach(leaf => {
-			if (leaf.view instanceof MarkdownView) {
-				leaf.view.previewMode.rerender(true);
-			}
-		});
 	}
 }
 
@@ -270,13 +256,13 @@ class ObsidianGithubSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Github Personal Access Token')
-			// .setDesc('It\'s a secret')
 			.addText(text => text
 				.setPlaceholder('Enter your secret')
 				.setValue(this.plugin.settings.githubPat)
 				.onChange(async (value) => {
 					this.plugin.settings.githubPat = value;
 					await this.plugin.saveSettings();
+					this.plugin.octokit = new Octokit({ auth: value })
 				}));
 
 		new Setting(containerEl)
