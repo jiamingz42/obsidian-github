@@ -22,6 +22,13 @@ const DEFAULT_SETTINGS: ObsidianGithubSettings = {
 	maxLinesShown: 20
 }
 
+const FILE_EXTENSIONS = new Map(Object.entries({
+	'js': 'javascript',
+	'ex': 'elixir',
+	'py': 'python',
+	'kt': 'kotlin',
+}))
+
 export default class ObsidianGithub extends Plugin {
 	settings: ObsidianGithubSettings;
 	octokit: typeof Octokit | undefined;
@@ -140,15 +147,12 @@ export default class ObsidianGithub extends Plugin {
 	}
 
 	getLangage(path: string): string {
-		if (path.endsWith('.js')) {
-			return "javascript";
-		} else if (path.endsWith('.ex')) {
-			return "elixir";
-		} else if (path.endsWith('.py')) {
-			return "python";
-		} else {
-			return ""
+		for (var [key, value] of FILE_EXTENSIONS) {
+			if (path.endsWith(`.${key}`)) {
+				return value as string;
+			}
 		}
+		return "";
 	}
 
 	createCodeFromString(fileContent: string, lang: string, lineStart: number, lineEnd: number): Node {

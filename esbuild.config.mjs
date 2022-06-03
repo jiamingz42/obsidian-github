@@ -54,7 +54,15 @@ esbuild.build({
     plugins: [
         prismjsPlugin({
             inline: true,
-            languages: ['typescript', 'javascript', 'css', 'markup', 'python', 'elixir'],
+            languages: [
+                'css',
+                'elixir',
+                'javascript',
+                'kotlin',
+                'markup',
+                'python',
+                'typescript',
+            ],
             plugins: [
                 'line-highlight',
                 'line-numbers',
